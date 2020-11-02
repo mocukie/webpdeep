@@ -78,7 +78,7 @@ Loop:
         case <-ctx.Done():
             break Loop
         default:
-            if transferDone &&
+            if transferDone && sc != nil &&
                 mo.jobCount.v == sc.jobCount &&
                 mo.jobCount.t == sc.jobCount &&
                 mo.scannerErr == sc.errCount { //wait for last job event
