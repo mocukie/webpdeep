@@ -147,12 +147,16 @@ func (zo *ZipOutput) Open(info os.FileInfo) error {
 }
 
 func (zo *ZipOutput) Close() error {
+	var err error
 	var z = zo.zip
 	defer z.Unlock()
 	z.Lock()
-	w, err := z.CreateHeader(zo.fh)
-	if err == nil {
-		_, err = io.Copy(w, zo.Writer.(*bytes.Buffer))
+	if zo.fh != nil {
+		var w io.Writer
+		w, err = z.CreateHeader(zo.fh)
+		if err == nil {
+			_, err = io.Copy(w, zo.Writer.(*bytes.Buffer))
+		}
 	}
 
 	if err := zo.zip.UnRef(); err != nil {
