@@ -37,6 +37,7 @@ type Monitor struct {
 	jobCount   counter
 	scannerErr int
 	startTime  time.Time
+	sub eventbus.Subscriber
 }
 
 func NewMonitor(eb *eventbus.Bus, config *Config, logOut io.Writer) *Monitor {
@@ -45,13 +46,12 @@ func NewMonitor(eb *eventbus.Bus, config *Config, logOut io.Writer) *Monitor {
 	m.errLog = log.New(logOut, "[ERROR] ", flag)
 	m.warnLog = log.New(logOut, "[WARN ] ", flag)
 	m.infoLog = log.New(logOut, "[INFO ] ", flag)
-
+	m.subscribe()
 	return m
 }
 
 func (mo *Monitor) Start(ctx context.Context) {
 	var (
-		sub          = mo.subscribe()
 		transferDone = false
 		t1s          = time.NewTicker(1 * time.Second)
 		t30s         = time.NewTicker(30 * time.Second)
@@ -62,7 +62,7 @@ func (mo *Monitor) Start(ctx context.Context) {
 Loop:
 	for {
 		select {
-		case msg := <-sub:
+		case msg := <-mo.sub:
 			switch msg.Topic {
 			case EvtTransferDone:
 				transferDone = true
@@ -90,21 +90,20 @@ Loop:
 	t30s.Stop()
 	fmt.Println()
 	mo.showCursor()
-	mo.unSubscribe(sub)
+	mo.unSubscribe()
 	mo.logCounter()
 }
 
-func (mo *Monitor) subscribe() eventbus.Subscriber {
-	sub := make(eventbus.Subscriber, 512)
+func (mo *Monitor) subscribe() {
+	mo.sub = make(eventbus.Subscriber, 512)
 	for _, topic := range requireTopics {
-		mo.eb.Subscribe(topic, sub)
+		mo.eb.Subscribe(topic, mo.sub)
 	}
-	return sub
 }
 
-func (mo *Monitor) unSubscribe(sub eventbus.Subscriber) {
+func (mo *Monitor) unSubscribe() {
 	for _, topic := range requireTopics {
-		mo.eb.UnSubscribe(topic, sub)
+		mo.eb.UnSubscribe(topic, mo.sub)
 	}
 }
 

@@ -72,6 +72,7 @@ type Transfer struct {
 	noMore   *atomicx.Bool
 	jobQueue <-chan *Job
 	eb       *eventbus.Bus
+	sub eventbus.Subscriber
 }
 
 func NewTransfer(eb *eventbus.Bus, config *Config) *Transfer {
@@ -80,12 +81,12 @@ func NewTransfer(eb *eventbus.Bus, config *Config) *Transfer {
 		maxGo:    config.MaxGo,
 		jobQueue: config.JobQueue,
 		eb:       eb,
+		sub: make(eventbus.Subscriber, 1),
 	}
 }
 
 func (tr *Transfer) Start(ctx context.Context) {
-	sub := make(eventbus.Subscriber, 1)
-	tr.eb.Subscribe(EvtScannerDone, sub)
+	tr.eb.Subscribe(EvtScannerDone, tr.sub)
 	tr.noMore.Set(false)
 	var wg = new(sync.WaitGroup)
 	for i := 0; i < tr.maxGo; i++ {
@@ -99,7 +100,7 @@ Loop:
 		case <-ctx.Done():
 			wg.Wait()
 			break Loop
-		case msg := <-sub:
+		case msg := <-tr.sub:
 			tr.noMore.Set(true)
 			wg.Wait()
 			sc := msg.Data.(*scannerResult)
@@ -114,7 +115,7 @@ Loop:
 	}
 
 	tr.eb.Publish(EvtTransferDone, nil)
-	tr.eb.UnSubscribe(EvtScannerDone, sub)
+	tr.eb.UnSubscribe(EvtScannerDone, tr.sub)
 }
 
 func (tr *Transfer) worker(wg *sync.WaitGroup, ctx context.Context) {

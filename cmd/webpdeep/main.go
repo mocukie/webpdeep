@@ -19,7 +19,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -316,7 +315,6 @@ func main() {
 
 	conf.JobQueue = make(chan *component.Job, 1024)
 	var (
-		wg         sync.WaitGroup
 		eb         = eventbus.New()
 		transfer   = component.NewTransfer(eb, conf)
 		monitor    = component.NewMonitor(eb, conf, logOut)
@@ -326,15 +324,11 @@ func main() {
 
 	hook := death.NewDeath(syscall.SIGINT, syscall.SIGTERM)
 	go hook.WaitForDeathWithFunc(abort)
-	wg.Add(1)
+
 	printBanner()
-	go func() {
-		monitor.Start(ctx)
-		wg.Done()
-	}()
 	go transfer.Start(ctx)
 	go scanner.Scan(ctx)
-	wg.Wait()
+	monitor.Start(ctx)
 	fmt.Println("\nDone.")
 }
 
