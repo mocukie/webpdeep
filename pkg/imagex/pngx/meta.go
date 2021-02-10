@@ -88,7 +88,7 @@ func (mr *MetaReader) Read(p []byte) (int, error) {
 	return read, err
 }
 
-func (mr *MetaReader) parseChunk(read []byte) error {
+func (mr *MetaReader) parseChunk(read []byte) (err error) {
 	mr.tmp.Reset()
 
 	for pos := 0; mr.reaming > 0; {
@@ -97,8 +97,8 @@ func (mr *MetaReader) parseChunk(read []byte) error {
 		if mr.reaming < 8 {
 			r := io.MultiReader(bytes.NewBuffer(read[pos:]), io.TeeReader(mr.in, mr.tmp))
 			buf := make([]byte, 8)
-			if _, err := io.ReadFull(r, buf); err != nil {
-				return err
+			if _, err = io.ReadFull(r, buf); err != nil {
+				return
 			}
 			dataLen = binary.BigEndian.Uint32(buf[:4])
 			fourcc = buf[4:]
@@ -136,22 +136,24 @@ func (mr *MetaReader) parseChunk(read []byte) error {
 			continue
 		}
 
-		var err error
 		chunk, body := mr.prepareChunkReader(pos, dataLen, read)
 		//skip chunk fourcc
 		if _, err = body.Discard(4); err != nil {
 			return err
 		}
 
-		tagData, err := bodyParse(body)
+		var tagData []byte
+		tagData, err = bodyParse(body)
 		if err != nil {
-			return err
+			break
 		}
 
-		if ok, err := mr.verifyChecksum(chunk); err != nil {
-			return err
+		var ok bool
+		if ok, err = mr.verifyChecksum(chunk); err != nil {
+			break
 		} else if !ok {
-			return png.FormatError("invalid checksum")
+			err = png.FormatError("invalid checksum")
+			break
 		}
 
 		if len(tagData) != 0 {
@@ -163,7 +165,7 @@ func (mr *MetaReader) parseChunk(read []byte) error {
 
 	mr.reaming *= -1
 
-	return nil
+	return
 }
 
 func (mr *MetaReader) prepareChunkReader(pos int, dataLen uint32, read []byte) (io.Reader, *bufio.Reader) {
